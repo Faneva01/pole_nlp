@@ -1,1 +1,14 @@
-/venv
+# Logs
+*.log
+*.log.*
+
+# Python
+__pycache__/
+*.pyc
+
+# Virtual environment
+venv/
+.venv/
+
+# Cache
+.cache/
