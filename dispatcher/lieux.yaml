@@ -1,0 +1,23 @@
+
+lieux:
+  - id: 0
+    nom: accueil
+    designation: à l'accueil
+  - id: 1
+    nom: toilettes
+    designation: aux toilettes
+  - id: 2
+    nom: buvette
+    designation: à la buvette
+  - id: 3
+    nom: tribune A
+    designation: à la tribune A
+  - id: 4
+    nom: tribune B
+    designation: à la tribune B
+  - id: 5
+    nom: sortie principale
+    designation: à la sortie principale
+  - id: 6
+    nom: infirmerie
+    designation: à l'infirmerie

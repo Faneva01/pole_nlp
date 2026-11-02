@@ -1,0 +1,18 @@
+# Whisper (version 20240930 minimum pour le modele large-v3-turbo)
+# Installe aussi PyTorch automatiquement
+openai-whisper>=20240930
+
+# Acces au micro et manipulation du signal audio
+sounddevice
+numpy
+
+# Detection d'activite vocale
+silero-vad
+
+# LLM local via Ollama + validation du JSON
+ollama
+pydantic
+pyyaml
+
+# Text to speech
+piper-tts
