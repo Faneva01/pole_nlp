@@ -31,16 +31,30 @@ if not logger.handlers:
         logger.addHandler(logging.NullHandler())
 
 
-def traiter(reponse, registre: RegistreLieux | None = None) -> dict:
+def traiter(
+    reponse,
+    registre: RegistreLieux | None = None,
+    lieux_proposes: list[str] | None = None,
+) -> dict:
     """Valide la réponse du LLM puis retourne le JSON enrichi de l'action.
 
-    Format d'entrée accepté (schéma du LLM) :
-        {"intention": ..., "lieux": [...], "reponse": ...}
+    Format d'entrée accepté (nouveau schéma du LLM, ancien accepté en entrée) :
+        {
+            "intentions": ["confirmation", "navigation"],
+            "lieux": ["buvette"],
+            "confirmation": "oui",
+            "reponse": "Très bien, suivez-moi !"
+        }
+
+    ``lieux_proposes`` est la mémoire de la dernière proposition d'accompagnement,
+    utilisée lorsqu'un « oui » ne redonne pas explicitement le lieu.
 
     Format de sortie :
         {
-            "intention": ...,
-            "lieux": [...],
+            "intentions": [...],    # liste normalisée
+            "intention": "...",     # intention principale
+            "lieux": [...],         # noms officiels du registre
+            "confirmation": "oui" | "non" | "",
             "reponse": "...",       # texte brut du LLM
             "action": {...},        # action pour le robot
             "message": "..."        # texte à prononcer par le TTS
@@ -52,8 +66,9 @@ def traiter(reponse, registre: RegistreLieux | None = None) -> dict:
     except (FormatReponseInvalide, TypeError, ValueError) as exc:
         logger.warning("Réponse LLM invalide : %s | %r", exc, reponse)
         canonique = {
-            "intention": "autre",
+            "intentions": ["autre"],
             "lieux": [],
+            "confirmation": "",
             "reponse": "Je n'ai pas compris. Pouvez-vous reformuler ?",
         }
 
@@ -61,9 +76,17 @@ def traiter(reponse, registre: RegistreLieux | None = None) -> dict:
         **canonique,
         "lieux": registre.resoudre_liste(canonique["lieux"]),
     }
-    action = construire_action(canonique, registre)
+    action = construire_action(
+        canonique,
+        registre,
+        lieux_proposes=lieux_proposes,
+    )
     resultat = {
-        **canonique,
+        "intentions": canonique["intentions"],
+        "intention": action.intention,
+        "lieux": canonique["lieux"],
+        "confirmation": canonique["confirmation"],
+        "reponse": canonique["reponse"],
         "action": action.to_dict(),
         "message": action.message,
     }
@@ -86,10 +109,18 @@ class Dispatcher:
     def __init__(self, registre: RegistreLieux | None = None):
         self.registre = registre or REGISTRE
         self.en_cours = False
+        self.lieux_proposes: list[str] = []
 
     def traiter(self, reponse) -> dict:
-        resultat = traiter(reponse, registre=self.registre)
-        self.en_cours = resultat["intention"] != "fin"
+        resultat = traiter(
+            reponse,
+            registre=self.registre,
+            lieux_proposes=self.lieux_proposes,
+        )
+        self.lieux_proposes = (
+            list(resultat["lieux"]) if "localiser" in resultat["intentions"] else []
+        )
+        self.en_cours = "fin" not in resultat["intentions"]
         return resultat
 
     def dispatch(self, reponse) -> dict:

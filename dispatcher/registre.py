@@ -109,5 +109,12 @@ class RegistreLieux:
             return nom
         return lieu.get("designation", lieu["nom"])
 
+    def emplacement(self, nom: str) -> str:
+        """Emplacement décrit dans lieux.yaml, ou chaîne vide si le lieu est inconnu."""
+        lieu = self.trouver(nom)
+        if lieu is None:
+            return ""
+        return lieu.get("emplacement") or ""
+
 
 REGISTRE = RegistreLieux()

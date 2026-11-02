@@ -1,23 +1,29 @@
-
 lieux:
   - id: 0
     nom: accueil
     designation: à l'accueil
+    emplacement: "au nord du stade, près de l'escalier"
   - id: 1
     nom: toilettes
     designation: aux toilettes
+    emplacement: "à droite de l'accueil, derrière la buvette"
   - id: 2
     nom: buvette
     designation: à la buvette
+    emplacement: "au centre du hall, face à l'escalier"
   - id: 3
     nom: tribune A
     designation: à la tribune A
+    emplacement: "à l'ouest du stade, en haut de l'escalier"
   - id: 4
     nom: tribune B
     designation: à la tribune B
+    emplacement: "à l'est du stade, en face de la tribune A"
   - id: 5
     nom: sortie principale
     designation: à la sortie principale
+    emplacement: "au sud du stade, au bout du grand couloir"
   - id: 6
     nom: infirmerie
     designation: à l'infirmerie
+    emplacement: "à côté de l'accueil, côté gauche"

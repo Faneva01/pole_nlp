@@ -1,15 +1,14 @@
 import json
+
 import ollama
 from pydantic import ValidationError
 
 try:
-    from .config import MODEL, SYSTEM
+    from .config import MODEL, SANS_EMPLACEMENT, SYSTEM
     from .models import Resultat
 except ImportError:  # exécution directe : python llm/main.py
-    from config import MODEL, SYSTEM
+    from config import MODEL, SANS_EMPLACEMENT, SYSTEM
     from models import Resultat
-
-REPONSE_PAR_DEFAUT = {"intention": "autre", "lieux": [], "reponse": ""}
 
 
 def charger_modele() -> str:
@@ -26,56 +25,37 @@ def charger_modele() -> str:
     return MODEL
 
 
-def _extraire_json(contenu: str) -> dict:
-    """Relit le JSON même si le modèle l'entoure de texte ou de balises Markdown."""
-    contenu = (contenu or "").strip()
-    if contenu.startswith("```"):
-        contenu = contenu.strip("`")
-        if contenu.lstrip().lower().startswith("json"):
-            contenu = contenu.lstrip()[4:]
-    try:
-        return json.loads(contenu)
-    except json.JSONDecodeError:
-        debut = contenu.find("{")
-        fin = contenu.rfind("}")
-        if debut != -1 and fin > debut:
-            return json.loads(contenu[debut : fin + 1])
-        raise
-
-
-def traiter(message: str) -> dict:
+def traiter(message: str, lieux_proposes: list[str] | None = None) -> dict:
+    """lieux_proposes : lieux pour lesquels le robot vient de proposer d'accompagner le visiteur."""
+    if lieux_proposes:
+        message = f"[Contexte : accompagnement proposé vers {', '.join(lieux_proposes)}] {message}"
     response = ollama.chat(
         model=MODEL,
         messages=[
             {"role": "system", "content": SYSTEM},
             {"role": "user", "content": message},
         ],
-        think=False,   # à la place de #think=True
+        think=False,
         format=Resultat.model_json_schema(),
         options={"temperature": 0.2, "num_predict": 300},
         keep_alive="30m",
     )
     try:
-        return Resultat.model_validate_json(
-            response["message"]["content"]
-        ).model_dump()
-    except (ValidationError, json.JSONDecodeError, TypeError, KeyError):
-        try:
-            return Resultat.model_validate(
-                _extraire_json(response["message"]["content"])
-            ).model_dump()
-        except (ValidationError, json.JSONDecodeError, TypeError, KeyError):
-            print(
-                "DEBUG :",
-                response.get("done_reason"),
-                repr(response.get("message", {}).get("content")),
-            )
-            return dict(REPONSE_PAR_DEFAUT)
+        d = Resultat.model_validate_json(response["message"]["content"]).model_dump()
+        if d["intentions"] == ["navigation"]:
+            d["reponse"] = ""          # garde-fou : navigation seule = pas de phrase
+        return d
+    except ValidationError:
+        print("DEBUG :", response["done_reason"], repr(response["message"]["content"]))
+        return {"intentions": ["autre"], "lieux": [], "confirmation": "",
+                "reponse": "Pardon, pouvez-vous répéter ?"}
 
 
 if __name__ == "__main__":
+    if SANS_EMPLACEMENT:
+        print("ATTENTION : emplacement manquant dans lieux.yaml pour :", ", ".join(SANS_EMPLACEMENT))
     print("Tapez votre message (ou 'quit' pour arrêter).")
-    resultats = []
+    lieux_proposes: list[str] = []   # mémoire de la dernière proposition d'accompagnement
 
     while True:
         message = input("Vous : ").strip()
@@ -84,6 +64,8 @@ if __name__ == "__main__":
         if not message:
             continue
 
-        r = traiter(message)
-        resultats.append({"message": message, **r})
+        r = traiter(message, lieux_proposes)
         print(json.dumps(r, ensure_ascii=False, indent=2))
+        intentions = r["intentions"]
+
+        lieux_proposes = r["lieux"] if "localiser" in intentions else []

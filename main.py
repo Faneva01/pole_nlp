@@ -48,8 +48,22 @@ def lire_arguments():
 
 def executer_action(action: dict) -> None:
     """Point d'intégration robot : à remplacer par l'appel Nav2 / ROS réel."""
-    if action.get("type") in {"naviguer", "localiser"}:
-        print("[ROBOT]", action.get("type"), action.get("lieux"))
+    type_action = action.get("type")
+    parametres = action.get("parametres") or {}
+
+    if type_action == "naviguer":
+        print(
+            "[ROBOT] navigation",
+            f"depart={parametres.get('depart')}",
+            f"destination={parametres.get('destination')}",
+            f"ids={parametres.get('ids')}",
+        )
+    elif type_action == "localiser":
+        print(
+            "[ROBOT] localisation",
+            action.get("lieux"),
+            f"ids={action.get('ids')}",
+        )
 
 
 def main():
@@ -102,7 +116,7 @@ def main():
                 dire("Au revoir.")
                 break
 
-            reponse_llm = traiter_llm(message)
+            reponse_llm = traiter_llm(message, dispatcher.lieux_proposes)
             print("LLM :", json.dumps(reponse_llm, ensure_ascii=False))
 
             resultat = dispatcher.traiter(reponse_llm)
@@ -119,7 +133,7 @@ def main():
             else:
                 print("Assistant : (pas de réponse vocale)")
 
-            if resultat["intention"] == "fin":
+            if "fin" in resultat["intentions"]:
                 break
     except KeyboardInterrupt:
         print("\nArrêt demandé.")

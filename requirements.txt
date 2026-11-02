@@ -10,8 +10,8 @@ numpy
 silero-vad
 
 # LLM local via Ollama + validation du JSON
-ollama
-pydantic
+ollama>=0.6
+pydantic>=2
 pyyaml
 
 # Text to speech

@@ -3,14 +3,16 @@
 Le schéma de référence est celui de llm/models.py :
 
     {
-        "intention": "navigation" | "localiser" | "information"
-                     | "salutation" | "fin" | "autre",
+        "intentions": ["navigation", ...],   # liste, au moins un élément
         "lieux": ["nom du lieu", ...],
+        "confirmation": "oui" | "non" | "",
         "reponse": "phrase à dire"
     }
 
-Ce module accepte aussi des variantes fréquentes (intent, locations,
-response, texte, etc.) et renvoie toujours les trois clés canoniques.
+Ce module accepte aussi des variantes fréquentes (intent, locations, response,
+confirm, etc.) ainsi que l'ancien format {"intention": "navigation"} en entrée.
+Il renvoie toujours les quatre clés canoniques, avec ``intentions`` sous forme
+de liste non vide et ``confirmation`` normalisée en oui / non / chaîne vide.
 """
 
 from __future__ import annotations
@@ -22,6 +24,7 @@ INTENTIONS = {
     "navigation",
     "localiser",
     "information",
+    "confirmation",
     "salutation",
     "fin",
     "autre",
@@ -46,6 +49,14 @@ ALIAS_INTENTION = {
     "info": "information",
     "question": "information",
     "renseignement": "information",
+    "confirmation": "confirmation",
+    "confirmer": "confirmation",
+    "confirm": "confirmation",
+    "oui": "confirmation",
+    "non": "confirmation",
+    "yes": "confirmation",
+    "no": "confirmation",
+    "accept": "confirmation",
     "salutation": "salutation",
     "greeting": "salutation",
     "bonjour": "salutation",
@@ -65,11 +76,11 @@ ALIAS_INTENTION = {
 }
 
 ALIAS_CHAMPS = {
-    "intention": "intention",
-    "intent": "intention",
-    "action": "intention",
-    "type": "intention",
-    "intentions": "intention",
+    "intentions": "intentions",
+    "intention": "intentions",
+    "intent": "intentions",
+    "action": "intentions",
+    "type": "intentions",
     "lieux": "lieux",
     "lieu": "lieux",
     "locations": "lieux",
@@ -78,6 +89,8 @@ ALIAS_CHAMPS = {
     "place": "lieux",
     "destinations": "lieux",
     "destination": "lieux",
+    "confirmation": "confirmation",
+    "confirm": "confirmation",
     "reponse": "reponse",
     "response": "reponse",
     "answer": "reponse",
@@ -85,6 +98,9 @@ ALIAS_CHAMPS = {
     "texte": "reponse",
     "message": "reponse",
 }
+
+VALEURS_OUI = {"oui", "yes", "ok", "true"}
+VALEURS_NON = {"non", "no", "false"}
 
 
 class FormatReponseInvalide(ValueError):
@@ -142,11 +158,49 @@ def _champs_canoniques(donnees: dict) -> dict:
 
 
 def normaliser_intention(valeur) -> str:
+    """Ramène une intention isolée à une valeur connue, sinon ``autre``."""
     if valeur is None:
         return "autre"
     cle = _sans_accents(valeur).lower().strip().replace("_", " ")
     cle = " ".join(cle.split()).strip(" .,!?:;")
     return ALIAS_INTENTION.get(cle, cle if cle in INTENTIONS else "autre")
+
+
+def normaliser_intentions(valeur) -> list[str]:
+    """Normalise une liste d'intentions (ou une chaîne seule) sans doublon."""
+    if valeur is None:
+        return ["autre"]
+
+    if isinstance(valeur, str):
+        elements = [valeur]
+    elif isinstance(valeur, dict):
+        elements = list(valeur.values())
+    else:
+        try:
+            elements = list(valeur)
+        except TypeError:
+            elements = [valeur]
+
+    intentions = []
+    for element in elements:
+        intention = normaliser_intention(element)
+        if intention not in intentions:
+            intentions.append(intention)
+    return intentions or ["autre"]
+
+
+def normaliser_confirmation(valeur) -> str:
+    """Normalise une confirmation en ``oui``, ``non`` ou chaîne vide."""
+    if isinstance(valeur, bool):
+        return "oui" if valeur else "non"
+    if valeur is None:
+        return ""
+    cle = _sans_accents(valeur).lower().strip().strip(" .,!?:;")
+    if cle in VALEURS_OUI:
+        return "oui"
+    if cle in VALEURS_NON:
+        return "non"
+    return ""
 
 
 def normaliser_lieux(valeur) -> list[str]:
@@ -192,8 +246,9 @@ def reponse_canonique(brut) -> dict:
     """Transforme n'importe quelle variante en schéma canonique du LLM."""
     donnees = _champs_canoniques(_extraire_dict(brut))
     return {
-        "intention": normaliser_intention(donnees.get("intention")),
+        "intentions": normaliser_intentions(donnees.get("intentions")),
         "lieux": normaliser_lieux(donnees.get("lieux")),
+        "confirmation": normaliser_confirmation(donnees.get("confirmation")),
         "reponse": normaliser_reponse(donnees.get("reponse")),
     }
 
@@ -204,6 +259,7 @@ def valider(brut) -> dict:
 
 
 def est_valide(brut) -> bool:
+    """Indique si ``brut`` peut être converti au schéma canonique."""
     try:
         reponse_canonique(brut)
         return True
