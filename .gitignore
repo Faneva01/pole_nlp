@@ -12,3 +12,5 @@ venv/
 
 # Cache
 .cache/
+
+dispatcher/dispatcher.log
